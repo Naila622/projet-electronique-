@@ -1,0 +1,95 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// Définitions des broches des boutons
+const int buttonUp = 6;
+const int buttonDown = 7;
+const int buttonSelect = 8;
+
+// Paramètres de l'écran OLED
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Variables du menu
+int menuIndex = 0;  // Position actuelle dans le menu
+String menuOptions[] = {"Activer le reveil", "Reglage de lheure", "Quitter"};
+int totalOptions = 3;
+
+void setup() {
+  // Initialisation de l'écran OLED
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // 0x3C est l'adresse I2C de l'écran OLED
+    Serial.println(F("Échec de l'initialisation de lecran OLED"));
+    for (;;);
+  }
+  
+  display.display();  // Affiche un écran de démarrage
+  delay(2000);        // Attend 2 secondes
+  
+  // Initialisation des boutons
+  pinMode(buttonUp, INPUT_PULLUP);
+  pinMode(buttonDown, INPUT_PULLUP);
+  pinMode(buttonSelect, INPUT_PULLUP);
+
+  // Affiche le menu principal
+  afficherMenu();
+}
+
+void loop() {
+  // Gérer les boutons pour naviguer dans le menu
+  if (digitalRead(buttonUp) == LOW) {
+    menuIndex--;
+    if (menuIndex < 0) menuIndex = totalOptions - 1;  // Boucle au début du menu
+    afficherMenu();
+    delay(300);  // Anti-rebond
+  }
+  
+  if (digitalRead(buttonDown) == LOW) {
+    menuIndex++;
+    if (menuIndex >= totalOptions) menuIndex = 0;  // Boucle à la fin du menu
+    afficherMenu();
+    delay(300);  // Anti-rebond
+  }
+
+  if (digitalRead(buttonSelect) == LOW) {
+    // Action lors de la sélection d'une option
+    afficherMessage(menuOptions[menuIndex] + " sélectionnée");
+    delay(1000);  // Affiche le message pendant 1 seconde
+    afficherMenu();
+    delay(300);  // Anti-rebond
+  }
+}
+
+// Fonction pour afficher le menu
+void afficherMenu() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+
+  display.println("Menu principal:");
+
+  // Affichage des options du menu
+  for (int i = 0; i < totalOptions; i++) {
+    if (i == menuIndex) {
+      display.print("> ");  // Indicateur de la sélection actuelle
+    } else {
+      display.print("  ");
+    }
+    display.println(menuOptions[i]);
+  }
+
+  display.display();
+}
+
+// Fonction pour afficher un message (ex: sélection d'une option)
+void afficherMessage(String message) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println(message);
+  display.display();
+}
