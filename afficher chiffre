@@ -1,0 +1,46 @@
+#include <LedControl.h>  // Bibliothèque LedControl pour MAX7219
+
+// Pin configuration
+#define DATA_IN    12  // Pin DIN (Data In)
+#define LOAD        10  // Pin LOAD (Chip Select)
+#define CLOCK       13  // Pin CLK (Clock)
+
+// Création de l'objet LedControl : Pin DIN, Pin CLK, Pin LOAD, nombre de matrices (ici 1)
+LedControl lc = LedControl(DATA_IN, CLOCK, LOAD, 1);
+
+// Tableau pour afficher les chiffres de 0 à 9 sur la matrice (8x8)
+byte digits[10][8] = {
+  {B00111100, B01000010, B01000010, B01000010, B01000010, B01000010, B01000010, B00111100}, // 0
+  {B00011000, B00111000, B00011000, B00011000, B00011000, B00011000, B00011000, B00111110}, // 1
+  {B00111100, B01000010, B00000010, B00011100, B01000000, B01000000, B01000000, B01111110}, // 2
+  {B00111100, B01000010, B00000010, B00011100, B00000010, B01000010, B01000010, B00111100}, // 3
+  {B00000100, B00001100, B00010100, B00100100, B01111110, B00000100, B00000100, B00000100}, // 4
+  {B01111110, B01000000, B01000000, B01111100, B00000010, B00000010, B01000010, B00111100}, // 5
+  {B00111100, B01000010, B01000000, B01111100, B01000010, B01000010, B01000010, B00111100}, // 6
+  {B01111110, B00000010, B00000100, B00001000, B00010000, B00010000, B00010000, B00010000}, // 7
+  {B00111100, B01000010, B01000010, B00111100, B01000010, B01000010, B01000010, B00111100}, // 8
+  {B00111100, B01000010, B01000010, B00111110, B00000010, B00000010, B01000010, B00111100}  // 9
+};
+
+void setup() {
+  // Initialisation des matrices
+  for (int i = 0; i < 1; i++) {
+    lc.shutdown(i, false);  // Désactive l'hibernation
+    lc.setIntensity(i, 8);   // Définit la luminosité (0 à 15)
+    lc.clearDisplay(i);      // Efface la matrice
+  }
+}
+
+void loop() {
+  for (int i = 0; i < 10; i++) {  // Afficher les chiffres de 0 à 9
+    afficherChiffre(i);  // Affiche un chiffre
+    delay(1000);         // Attendre 1 seconde avant de passer au suivant
+  }
+}
+
+// Fonction pour afficher un chiffre sur la matrice
+void afficherChiffre(int chiffre) {
+  for (int row = 0; row < 8; row++) {  // Pour chaque ligne de la matrice
+    lc.setRow(0, row, digits[chiffre][row]);  // Affiche le chiffre sur la matrice
+  }
+}
