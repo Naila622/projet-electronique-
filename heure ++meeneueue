@@ -1,0 +1,196 @@
+#include <LedControl.h>
+#include <Wire.h>
+#include <RTClib.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// Broches pour le MAX7219
+#define DATA_IN 11
+#define CLK 13
+#define CS 10
+#define NUM_MATRICES 4
+
+// Broche pour le buzzer
+#define BUZZER_PIN 9
+
+// Broches des boutons
+const int buttonUp = 6;
+const int buttonDown = 7;
+const int buttonSelect = 8;
+
+// Paramètres de l'écran OLED
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Initialisation du contrôle LED et RTC
+LedControl lc = LedControl(DATA_IN, CLK, CS, NUM_MATRICES);
+RTC_DS1307 rtc;
+
+// Variables du menu
+int menuIndex = 0; // Position actuelle dans le menu
+String menuOptions[] = {"Afficher l'heure", "Regler l'heure", "Activer l'alarme", "Quitter"};
+int totalOptions = 4;
+
+bool alarmEnabled = false;
+bool format24h = true; // Format de l'heure : 24h ou 12h
+bool blinkState = false; // État du clignotement des deux points
+unsigned long lastBlinkTime = 0; // Temps du dernier changement d'état
+
+// Fonction pour afficher un chiffre sur une matrice
+void afficherChiffre(byte chiffre, int position) {
+    static const byte chiffres[10][8] = {
+        {0b00111100, 0b01000010, 0b01000010, 0b01000010, 0b01000010, 0b01000010, 0b01000010, 0b00111100},
+        {0b00001000, 0b00011000, 0b00101000, 0b00001000, 0b00001000, 0b00001000, 0b00001000, 0b00011100},
+        {0b00111100, 0b01000010, 0b00000010, 0b00001100, 0b00010000, 0b00100000, 0b01000010, 0b01111110},
+        {0b00111100, 0b01000010, 0b00000010, 0b00111100, 0b00000010, 0b00000010, 0b01000010, 0b00111100},
+        {0b00000100, 0b00001100, 0b00010100, 0b00100100, 0b01111110, 0b00000100, 0b00000100, 0b00000100},
+        {0b01111110, 0b01000000, 0b01000000, 0b01111100, 0b00000010, 0b00000010, 0b01000010, 0b00111100},
+        {0b00111100, 0b01000010, 0b01000000, 0b01111100, 0b01000010, 0b01000010, 0b01000010, 0b00111100},
+        {0b01111110, 0b00000010, 0b00000100, 0b00001000, 0b00010000, 0b00010000, 0b00010000, 0b00010000},
+        {0b00111100, 0b01000010, 0b01000010, 0b00111100, 0b01000010, 0b01000010, 0b01000010, 0b00111100},
+        {0b00111100, 0b01000010, 0b01000010, 0b00111110, 0b00000010, 0b00000010, 0b01000010, 0b00111100}
+    };
+
+    for (int row = 0; row < 8; row++) {
+        lc.setRow(position, row, chiffres[chiffre][row]);
+    }
+}
+
+// Fonction pour afficher l'heure (format 24h)
+void afficherHeure(int heure, int minute, int seconde) {
+    lc.clearDisplay(0);
+    lc.clearDisplay(1);
+    lc.clearDisplay(2);
+    lc.clearDisplay(3);
+
+    afficherChiffre(heure / 10, 3);
+    afficherChiffre(heure % 10, 2);
+
+    // Ajuster le clignotement uniquement pour les deux points
+    unsigned long currentTime = millis();
+    if (currentTime - lastBlinkTime >= 500) { // Clignote toutes les 500 ms
+        blinkState = !blinkState;
+        lastBlinkTime = currentTime;
+    }
+
+    if (blinkState) {
+        lc.setLed(2, 3, 7, true);  // Point supérieur entre les heures et les minutes
+        lc.setLed(2, 4, 7, true);  // Point inférieur entre les heures et les minutes
+    } else {
+        lc.setLed(2, 3, 7, false);
+        lc.setLed(2, 4, 7, false);
+    }
+
+    afficherChiffre(minute / 10, 1);
+    afficherChiffre(minute % 10, 0);
+}
+
+// Fonction pour régler l'heure
+void reglerHeure() {
+    DateTime maintenant = rtc.now();
+    int heure = maintenant.hour();
+    int minute = maintenant.minute();
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    while (true) {
+        display.clearDisplay();
+        display.setCursor(0, 0);
+        display.println("Reglage de l'heure:");
+        display.print("Heure: ");
+        display.println(heure);
+        display.print("Minute: ");
+        display.println(minute);
+        display.display();
+
+        if (digitalRead(buttonSelect) == LOW) {
+            rtc.adjust(DateTime(maintenant.year(), maintenant.month(), maintenant.day(), heure, minute, 0));
+            break;
+        }
+
+        if (digitalRead(buttonUp) == LOW) {
+            minute = (minute + 1) % 60;
+            delay(200); // Anti-rebond
+        }
+
+        if (digitalRead(buttonDown) == LOW) {
+            heure = (heure + 1) % 24;
+            delay(200); // Anti-rebond
+        }
+    }
+}
+
+// Fonction pour afficher le menu
+void afficherMenu() {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Menu principal:");
+
+    for (int i = 0; i < totalOptions; i++) {
+        if (i == menuIndex) {
+            display.print("> ");
+        } else {
+            display.print("  ");
+        }
+        display.println(menuOptions[i]);
+    }
+
+    display.display();
+}
+
+void setup() {
+    for (int i = 0; i < NUM_MATRICES; i++) {
+        lc.shutdown(i, false);
+        lc.setIntensity(i, 8);
+        lc.clearDisplay(i);
+    }
+
+    if (!rtc.begin()) {
+        while (1);
+    }
+
+    if (!rtc.isrunning()) {
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+
+    pinMode(BUZZER_PIN, OUTPUT);
+    pinMode(buttonUp, INPUT_PULLUP);
+    pinMode(buttonDown, INPUT_PULLUP);
+    pinMode(buttonSelect, INPUT_PULLUP);
+
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        while (1);
+    }
+
+    afficherMenu();
+}
+
+void loop() {
+    DateTime maintenant = rtc.now();
+
+    if (menuIndex == 0) {
+        afficherHeure(maintenant.hour(), maintenant.minute(), maintenant.second());
+    } else if (menuIndex == 1) {
+        reglerHeure();
+    } else if (menuIndex == 2) {
+        alarmEnabled = !alarmEnabled;
+    }
+
+    if (digitalRead(buttonUp) == LOW) {
+        menuIndex = (menuIndex + 1) % totalOptions;
+        afficherMenu();
+        delay(200); // Anti-rebond
+    }
+
+    if (digitalRead(buttonDown) == LOW) {
+        menuIndex = (menuIndex - 1 + totalOptions) % totalOptions;
+        afficherMenu();
+        delay(200); // Anti-rebond
+    }
+}
